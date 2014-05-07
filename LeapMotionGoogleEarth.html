@@ -1,0 +1,202 @@
+<!-- @author Alberto Scicali
+ -->
+
+<html>
+	<head>
+		<script type="text/javascript" src="https://www.google.com/jsapi"> </script>
+	</head>
+	<body>
+		<div id ="pawCountInfo"></div>
+		<div id="map3d" style="height: 710px; width: 1350px;"></div>
+		<script src="leap-0.5.0.js"></script>
+
+		<script>
+			/*var clearBool = window.confirm("Do you want to clear local storage?");
+			if(clearBool)
+				localStorage.clear();
+			*/
+			
+
+			var ge;
+		    google.load("earth", "1", {"other_params":"sensor=true_or_false"});
+
+		    function init(){
+		    	google.earth.createInstance('map3d', initCB, failureCB);
+		    }
+
+		    function initCB(instance) {
+		    	ge = instance;
+		    	ge.getWindow().setVisibility(true);
+		    	ge.getLayerRoot().enableLayerById(ge.LAYER_TERRAIN, true);
+		    	ge.getOptions().setAtmosphereVisibility(true);
+		    	// Variables for the text outpit
+				
+				var globeInfo = document.getElementById('globeInfo');
+				var pawCountInfo = document.getElementById('pawCountInfo');
+				var hands = null;
+				var longitude = 0;
+				var latitude = 0;
+				var range = 0;
+				// This variable crontrolls the initial position of the camera
+				var lookAt = ge.getView().copyAsLookAt(ge.ALTITUDE_RELATIVE_TO_GROUND);
+				// This sets the camera movement speed: 0.0-5.0 or ge.SPEED_TELEPORT
+				ge.getOptions().setFlyToSpeed(ge.SPEED_TELEPORT);
+				setCenterIcon();
+
+				placeStoredPins();
+
+				function setCenterIcon(){
+					var screenOverlay = ge.createScreenOverlay('');
+					// Specify a path to the image and set as the icon
+					var icon = ge.createIcon('');
+					icon.setHref('http://www.ce.rit.edu/research/projects/2010_spring/WICam/resources/img/rit_tiger.gif');
+					screenOverlay.setIcon(icon);
+					// Set the ScreenOverlay's position in the window
+					screenOverlay.getOverlayXY().setXUnits(ge.UNITS_PIXELS);
+					screenOverlay.getOverlayXY().setYUnits(ge.UNITS_PIXELS);
+					screenOverlay.getOverlayXY().setX(675);
+					screenOverlay.getOverlayXY().setY(355);
+					// Set the overlay's size in pixels
+					screenOverlay.getSize().setXUnits(ge.UNITS_PIXELS);
+					screenOverlay.getSize().setYUnits(ge.UNITS_PIXELS);
+					screenOverlay.getSize().setX(20);
+					screenOverlay.getSize().setY(20);
+					ge.getFeatures().appendChild(screenOverlay);
+				}
+				
+				function adjustRange(hands){
+					range = Math.pow((hands[0].stabilizedPalmPosition[1]-50)*0.12, 4)
+					if(range < 50)
+						range = 50;
+					
+					lookAt.setRange(range);
+				}
+ 
+				/* Rotates the earth based on the X and Z axis positions
+				   Does not rotate if there are less than two fingers sensed
+				   @param hands array
+				*/
+				function rotateEarth(hands){
+					if(hands[0].fingers.length >= 2){
+						var yVar = (Math.log((hands[0].stabilizedPalmPosition[1])/100));
+						if(yVar <= 0)
+							yVar = .005;
+
+						latitude = lookAt.getLatitude() - (hands[0].stabilizedPalmPosition[2] * 
+						0.0006 * yVar);
+						longitude = lookAt.getLongitude() + (hands[0].stabilizedPalmPosition[0] * 
+						0.0006 *  yVar);
+						// These if statements control the longitutude and latitude bounds
+						if(latitude >= 90)
+							latitude = 90;
+
+						if(latitude <= -90)
+							latitude = -90;
+
+						if(longitude >= 180)
+							longitude = -180;
+						else if(longitude <= -180)
+							longitude = 180;
+					
+						lookAt.setLatitude(latitude);
+						lookAt.setLongitude(longitude);
+						}
+
+						
+				}
+
+				function addPushPin(text, latitude, longitude){
+					// Create the placemark.
+					var placemark = ge.createPlacemark('');
+					
+					placemark.setName(text);
+
+					// Setting the paw icon
+					var icon = ge.createIcon('');
+					icon.setHref('http://www.hackettstownbid.com/images/news/5ffd6505.png');
+					var style = ge.createStyle(''); //create a new style
+					style.getIconStyle().setIcon(icon); //apply the icon to the style
+					style.getIconStyle().setScale(3.0);
+					placemark.setStyleSelector(style); //apply the style to the placemark
+					// Set the placemark's location.  
+					var point = ge.createPoint('');
+					point.setLatitude(latitude);
+					point.setLongitude(longitude);
+					placemark.setGeometry(point);
+
+					
+					// Add the placemark to Earth.
+					ge.getFeatures().appendChild(placemark);
+					// Stores the pawPin in local Storage
+				}
+
+				function placeStoredPins(){
+					if(localStorage.length > 0){
+						for(i = 0; i < localStorage.length; i++){
+							var paw = JSON.parse(localStorage.getItem("pawPin#" + i.toString()));
+							addPushPin(paw.text, paw.lati, paw.longi);
+						}
+					}
+				}
+
+				function storePawPin(text, latitude, longitude){
+					localStorage.setItem("pawPin#" + localStorage.length, 
+							JSON.stringify({text: text, lati: latitude, longi: longitude}));
+				}
+
+				function storageTest(){
+					for(i = 20; i < 1000; i++){
+						var num = Math.floor(Math.random()*181);
+						num *= Math.floor(Math.random()*2) == 1 ? 1 : -1;
+						var num2 = Math.floor(Math.random()*181);
+						num2 *= Math.floor(Math.random()*2) == 1 ? 1 : -1;
+						var text ="PawPin #" + i.toString();
+						storePawPin(text, num, num2);
+					}
+				}
+
+				// Loop that receives frames from Leep
+				Leap.loop(function (frame) {
+					// Only continues if there is at least one hand being sensed.
+					if(frame.hands.length > 0){
+						hands = frame.hands;
+
+						// Informational data 
+						// globeInfo.innerHTML = 
+						// '<p> Range  = ' + range + '</p>' + 
+						// '<p> Palm X = ' + hands[0].stabilizedPalmPosition[0] + '</p>' +
+						// '<p> Palm Y = ' + hands[0].stabilizedPalmPosition[1] + '</p>' +
+						// '<p> Palm Z = ' + hands[0].stabilizedPalmPosition[2] + '</p>';
+
+						pawCountInfo.innerHTML = '<p> Number of Paw-Pins placed: ' + localStorage.length + '</p>';
+
+						// This handles the distance frm the Earth
+						adjustRange(hands);
+
+						// This spins the Earth
+						rotateEarth(hands);	
+
+						if(hands.length > 1){
+							if(hands[1].pointables.length > 2){
+								var text = prompt("Please type the location and your name.", "input...");
+								if(text != null && text != "input..." && text.length > 0){
+									addPushPin(text, latitude, longitude);
+									storePawPin(text, latitude, longitude);
+								}
+							}
+						}
+
+						// Update the view in Google Earth.
+						ge.getView().setAbstractView(lookAt);
+					}
+					previousFrame = frame;
+				});
+		    }
+
+		    function failureCB(errorCode) {
+		    }
+
+		    google.setOnLoadCallback(init);
+		</script>
+	</body>	
+</html>
